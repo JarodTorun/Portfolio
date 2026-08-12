@@ -684,7 +684,8 @@ function applyCardStyle(slug) {
 
 // Images des cartes (clé = data-card-image) : même nom de fichier partagé
 // entre tous les projets, chacun va chercher le sien dans son propre
-// dossier ../input/<slug>/ (voir setupHero pour la même logique).
+// dossier ../input/<Nom Du Projet>/ (Title Case, voir setupHero pour la
+// même logique).
 const CARD_IMAGES = {
   concept: 'Card 1.webp',
   prototyping: 'Card 2.webp',
@@ -693,9 +694,13 @@ const CARD_IMAGES = {
 };
 
 function setupCardImages(slug) {
+  // Dossier réel sur disque en Title Case ("input/The Cube/", pas "input/
+  // the cube/") : marchait en local (Windows/NTFS insensible à la casse)
+  // mais 404 sur GitHub Pages (Linux, sensible à la casse) avec le slug brut.
+  const folder = toFileBaseName(slug);
   Object.entries(CARD_IMAGES).forEach(([cardKey, filename]) => {
     const img = document.querySelector(`[data-card-image="${cardKey}"]`);
-    if (img) img.src = `../input/${slug}/${filename}`;
+    if (img) img.src = `../input/${folder}/${filename}`;
   });
 }
 
@@ -770,8 +775,11 @@ function isSlowConnection() {
 // de Mo de vidéo - dans ce cas on ne déclenche même pas le téléchargement,
 // l'image fixe (quelques centaines de Ko) s'affiche directement).
 function setupHero(slug) {
-  const folder = `../input/${slug}/`;
   const baseName = toFileBaseName(slug);
+  // Dossier réel sur disque en Title Case ("input/The Cube/"), pas le slug
+  // brut en minuscule - marchait en local (Windows insensible à la casse),
+  // 404 sur GitHub Pages (Linux, sensible à la casse).
+  const folder = `../input/${baseName}/`;
   const video = document.getElementById('hero-video');
   const heroImage = document.getElementById('hero-image');
   const heroSection = document.getElementById('hero');
