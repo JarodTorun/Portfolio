@@ -1,0 +1,647 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Rectangle bleu de surbrillance au tap (iOS Safari/Chrome, tous deux
+   WebKit) sur les liens/boutons - le catalogue mobile (voir #catalog plus
+   bas) gère déjà son propre retour visuel au clic, pas besoin de celui du
+   navigateur par-dessus. */
+.is-mobile a,
+.is-mobile button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  /* bg.png est en 32/9 : on force la hauteur à toujours remplir la fenêtre,
+     la largeur suit proportionnellement et déborde (rognée par overflow: hidden) */
+  background-image: url('input/HOME/bg.png');
+  background-size: auto 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#scene {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Les objets/ombres/hover-zones restent sur un canevas 16/9 fixe,
+     indépendant du 32/9 du bg, calé sur la hauteur de la fenêtre */
+  aspect-ratio: 16 / 9;
+  height: 100vh;
+  width: calc(100vh * 16 / 9);
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  /* Fond propre à #scene : pendant le portail, #overlay (noir) est encore
+     juste derrière elle en z-index, donc les zones transparentes des PNG
+     produits laissaient voir du noir au lieu de bg.png (cachée deux niveaux
+     plus loin, sur le body). En le posant ici, les zones transparentes
+     révèlent directement bg.png, peu importe ce qu'il y a derrière. */
+  background-image: url('input/HOME/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Le calcul height-driven ci-dessus (100vh de haut, largeur déduite en
+   16/9) donne une largeur bien supérieure à l'écran dès qu'il est plus
+   étroit que haut (portrait mobile - ex. 874px de haut -> ~1554px de
+   large) : présente dans la page dès le chargement (même juste derrière
+   #overlay, avant tout clic sur Discover), elle pousse le viewport mobile
+   à "zoomer" pour l'englober au lieu d'afficher la page à sa vraie taille.
+   Les deux formules ci-dessous (min() indépendants sur width ET height,
+   sans se référencer l'une l'autre - CSS ne le permet pas dans une même
+   règle) choisissent laquelle des deux dimensions est la plus contraignante
+   et dérivent l'autre en conséquence, pour que #scene tienne toujours
+   entièrement dans l'écran. */
+.is-mobile #scene {
+  width: min(100vw, 100vh * 16 / 9);
+  height: min(100vh, 100vw * 9 / 16);
+  /* Page vierge pour l'instant (voir buildScene dans script.js, pas
+     appelée sur mobile) - #scene reste vide, son propre fond (bg.png,
+     sombre) n'a donc plus de raison de s'afficher. */
+  background: none;
+}
+
+/* Catalogue mobile (voir buildCatalog dans script.js) : page blanche, à la
+   place du fond bg.png (pensé pour la mise en scène desktop). */
+.is-mobile body {
+  background-image: none;
+  background-color: #fff;
+}
+/* html, body { overflow: hidden } tout en haut est pensé pour la scène
+   desktop (jamais besoin de scroller) - le catalogue mobile, potentiellement
+   plus haut qu'un écran une fois toutes les cartes affichées, en a besoin. */
+.is-mobile,
+.is-mobile body {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#catalog {
+  display: none;
+}
+.is-mobile #catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  /* Nom en haut (voir .mobile-name), CV/mail en bas (voir .cv-link/
+     .mail-link) : un peu de marge en haut pour le nom, généreuse en bas
+     pour ces deux boutons fixes, pour la DERNIÈRE carte. */
+  padding: 4rem 1.5rem 6rem;
+}
+/* En paysage, clientWidth (donc la largeur dispo pour les cartes, en 100%)
+   devient bien plus grand que la hauteur d'écran réelle - les cartes
+   (aspect-ratio 4/3) grossissaient d'autant, dépassant largement la moitié
+   de l'écran. On plafonne leur largeur à une taille "portrait" et on centre
+   le tout, plutôt que de laisser une seule carte remplir tout l'écran. */
+@media (orientation: landscape) {
+  .is-mobile #catalog {
+    max-width: 420px;
+    margin: 0 auto;
+  }
+}
+
+/* Une carte par projet : cadre arrondi en dégradé (rouge sang -> noir),
+   l'image de l'objet démonté débordant par-dessus le haut, titre en blanc
+   en bas. Pas d'overflow: hidden sur .catalog-card lui-même : c'est ce qui
+   permet à .catalog-card-image de déborder visuellement au-dessus du cadre
+   sans se faire rogner - seul .catalog-card-bg (le cadre à proprement
+   parler) a overflow: hidden, pour ses propres coins arrondis. */
+.catalog-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  text-decoration: none;
+}
+.catalog-card-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Resserré des deux côtés (pas juste top) pour que le dégradé lui-même
+     soit plus rectangulaire (moins haut), sans changer la forme de la
+     carte (restée en 4:3, voir .catalog-card) ni celle du conteneur image. */
+  bottom: 6%;
+  top: 32%;
+  z-index: 0;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background: linear-gradient(to bottom, #7a0c0c 0%, #101010 75%);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+}
+/* background-image/-size/-position posés en JS (voir computeObjectCrop
+   dans script.js) : recadre l'image (transparente, l'objet n'occupe qu'une
+   fraction du canevas complet) sur sa zone utile, en la faisant remplir
+   cette boîte. height > celle de .catalog-card-bg (85% contre 82% de
+   hauteur disponible) et top: 0 (pas 18%) : ce chevauchement au-dessus est
+   précisément ce qui fait "déborder" l'objet par-dessus le cadre. */
+.catalog-card-image {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 83%;
+  z-index: 1;
+  background-repeat: no-repeat;
+}
+.catalog-card-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* En % (pas rem) : reste proportionnellement à l'intérieur du dégradé,
+     dont le bord bas n'est plus collé à celui de la carte (voir bottom: 6%
+     sur .catalog-card-bg) - un décalage fixe l'aurait fait déborder sous
+     le dégradé, dans la zone transparente. */
+  bottom: 10%;
+  z-index: 2;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: 0.02em;
+}
+
+/* Accès persistant au CV sur mobile (voir index.html - pas d'équivalent à
+   l'objet "ID" de la scène desktop pour l'instant). Caché par défaut : ne
+   sert que sur mobile (voir .is-mobile plus bas), le CV desktop restant
+   accessible via la scène elle-même. Même langage visuel que les pilules
+   Close/Return/Back du reste du site (fond sombre translucide, coins
+   arrondis), en CSS simple ici - pas de Tailwind chargé sur cette page. */
+.cv-link {
+  display: none;
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 10;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 300;
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.is-mobile .cv-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Bas plutôt qu'en haut (demande explicite, comme /projets/) - top-1.25rem
+     de la règle de base annulé. */
+  top: auto;
+  bottom: 1.25rem;
+  /* Plus gros (demande explicite) que le 0.6rem/1.25rem/0.85rem de base. */
+  padding: 0.85rem 1.6rem;
+  font-size: 1rem;
+}
+
+/* Même langage visuel que .cv-link, mais icône seule (pas de texte) en haut
+   à GAUCHE - accès direct au mail sans passer par le CV (voir consigne).
+   Page d'accueil uniquement (pas ajouté sur /projets/ ni /CV/). */
+.mail-link {
+  display: none;
+  position: fixed;
+  top: 1.25rem;
+  left: 1.25rem;
+  z-index: 10;
+  /* Même largeur que .cv-link (pas juste un cercle) : mêmes paddings
+     horizontal/vertical que le bouton CV plutôt qu'une taille fixe carrée -
+     l'icône seule dans ce padding donne une pilule de largeur comparable
+     au "CV" texte à côté, au lieu d'un rond plus étroit. */
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+}
+.is-mobile .mail-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Bas plutôt qu'en haut (demande explicite, comme /projets/) - top-1.25rem
+     de la règle de base annulé. */
+  top: auto;
+  bottom: 1.25rem;
+  /* Même padding plus généreux que .cv-link (demande explicite), pour
+     garder les deux boutons à une largeur comparable. */
+  padding: 0.85rem 1.6rem;
+}
+.is-mobile .mail-link svg {
+  /* Boîte de layout à 16px (doit correspondre EXACTEMENT à la hauteur de
+     ligne du texte "CV" - font-size 1rem * line-height 1 = 16px, voir
+     .cv-link - sinon, même padding identique, le bouton grandit avec
+     l'icône). scale() agrandit le RENDU visuel sans toucher à cette boîte
+     (transform ne déclenche pas de reflow) - la seule façon de faire
+     paraître l'icône plus grande sans changer la taille du bouton. */
+  width: 16px;
+  height: 16px;
+  transform: scale(1.2);
+}
+
+/* Bandeau sombre dégradé derrière le nom/les boutons du bas : SUPPRIMÉ sur
+   l'accueil (demande explicite) - CV/mail sont maintenant assez grands/
+   opaques (voir plus haut) pour rester lisibles sans lui. Reste display:
+   none par défaut, jamais réactivé pour .is-mobile ici (contrairement à
+   /projets/, où l'équivalent existe toujours). */
+.mobile-topbar-scrim {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8rem;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.45) 35%,
+    rgba(0, 0, 0, 0.15) 70%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Bandeau dédié au nom, en haut - séparé de .mobile-topbar-scrim (CV/mail,
+   maintenant en bas). Même principe, juste un élément à part : les deux
+   bandeaux ne se chevauchent plus, chacun est indépendant. */
+.mobile-name-scrim {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6rem;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  z-index: 4;
+  pointer-events: none;
+}
+.is-mobile .mobile-name-scrim {
+  display: block;
+}
+
+/* Nom, centré en haut (demande explicite - retour à sa position d'origine,
+   CV/mail restant en bas eux). z-index inférieur aux boutons (10) : par
+   cohérence, même si rien ne le chevauche plus ici. */
+.mobile-name {
+  display: none;
+  position: fixed;
+  top: 1.25rem;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+  /* Blanc : le bandeau sombre juste au-dessus (.mobile-name-scrim) donne
+     assez de contraste, plus besoin d'un texte sombre comme avant. */
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Même hauteur/alignement vertical que .cv-link/.mail-link (padding
+     0.6rem de chaque côté du texte sur .cv-link, width/height 2.5rem sur
+     .mail-link) : line-height calé pour centrer visuellement le texte sur
+     la même ligne que ces deux boutons plutôt que d'avoir l'air décalé. */
+  line-height: 2.5rem;
+}
+.is-mobile .mobile-name {
+  display: block;
+}
+
+#scene img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none; /* Important pour que le clic passe au travers */
+}
+
+.object-img {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  /* will-change posé/retiré en JS au survol seulement : le laisser en
+     permanence sur les 20 images crée trop de calques GPU persistants,
+     ce qui favorise le bug d'affichage au retour d'onglet en arrière-plan */
+}
+
+.object-img.is-hovered {
+  transform: translateY(-20px);
+}
+
+.shadow-img {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.shadow-img.is-dimmed {
+  opacity: 0.5;
+  transform: scale(1.02);
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000; /* au-dessus de tout, y compris les .hover-zone (max ~1200) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  /* Aucun padding horizontal par défaut (desktop) : le titre/sous-titre se
+     redimensionnent déjà via clamp() (voir #overlay-title/-subtitle) et
+     restent loin des bords sur un écran large. Sur mobile (voir .is-mobile,
+     posée en JS - IS_MOBILE), un écran étroit rapproche davantage le texte
+     des bords malgré clamp() - une marge dédiée l'en tient à l'écart. */
+  background-color: #000;
+  overflow: hidden;
+  /* Dernière étape de la séquence au clic : une fois le texte et la vidéo
+     effacés (0.6s), l'overlay entier s'efface à son tour et révèle #scene. */
+  transition: opacity 0.6s ease-in-out;
+  transition-delay: 1.2s;
+}
+
+/* Splash "Discover" gardé tel quel sur mobile (juste redimensionné, pas
+   redessiné) : marge latérale pour le texte, espacement resserré entre
+   titre/sous-titre/bouton (3rem desktop pensé pour un écran large, un peu
+   généreux sur un mobile souvent plus court en hauteur), bouton un peu
+   moins large. */
+.is-mobile #overlay {
+  gap: 2rem;
+  padding: 0 1.5rem;
+}
+.is-mobile #power-switch {
+  padding: 0.75rem 2rem;
+  font-size: 0.9rem;
+}
+/* Le clamp() desktop (voir #overlay-title/-subtitle plus haut) reste calé
+   sur son PLANCHER sur toute la plage des largeurs mobiles (3.5vw/2vw n'y
+   dépassent jamais le minimum) - coefficients vw bien plus élevés ici,
+   pensés pour cette plage étroite précisément, plutôt qu'une formule unique
+   pour les deux mondes. */
+.is-mobile #overlay-title {
+  font-size: clamp(1.35rem, 6vw, 1.75rem);
+}
+.is-mobile #overlay-subtitle {
+  font-size: clamp(0.85rem, 3.5vw, 1rem);
+}
+
+/* Pas de pointer-events: none ici : contrairement à opacity, cette
+   propriété n'est pas animable, elle changerait donc instantanément au
+   clic et laisserait les hover-zone de #scene réagir sous l'overlay
+   pendant qu'il est encore visible en train de s'effacer. L'overlay
+   continue de bloquer les clics jusqu'à sa suppression du DOM par
+   overlay.remove() en JS, pile quand le fondu est terminé. */
+#overlay.is-off {
+  opacity: 0;
+}
+
+/* Fond vidéo flouté, plein écran */
+#overlay-video {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(40px);
+  opacity: 1;
+  pointer-events: none;
+  /* Zoom avant continu dès le clic (2s), fondu au noir qui démarre une fois
+     le texte effacé (délai 0.4s, voir #overlay-heading/#power-switch-glow). */
+  transition: filter 0.4s ease-in-out, transform 2s ease-out, opacity 0.6s ease-in-out 0.4s;
+}
+
+#overlay.is-off #overlay-video {
+  filter: blur(150px); /* explicite, indépendant du survol qui vient de disparaître (pointer-events: none) */
+  transform: scale(1.15);
+  opacity: 0;
+}
+
+/* Flou plus intense au survol du bouton Discover (:has() remonte du bouton,
+   descendant de #power-switch-glow, jusqu'à la vidéo, simple sibling de ce
+   dernier dans #overlay) */
+#overlay:has(#power-switch:hover) #overlay-video {
+  filter: blur(150px);
+  /* Le raccourci "transition" réinitialise TOUTES les sous-propriétés non
+     citées : sans redonner transform/opacity ici, elles perdraient leur
+     transition dès que la souris survole le bouton (donc pile au moment du
+     clic), et sauteraient instantanément à leur valeur finale au lieu de
+     s'animer -> c'est ce qui donnait un "fond noir direct". */
+  transition: filter 1s ease-in-out, transform 2s ease-out, opacity 0.6s ease-in-out 0.4s;
+}
+
+/* Calque sombre pour garder le texte lisible par-dessus la vidéo */
+#overlay-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+#overlay-heading {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  opacity: 0;
+  /* Fondu d'entrée : transition classique (pas d'animation @keyframes),
+     déclenchée par .is-ready posée en JS peu après le chargement. Une
+     transition ne se déclenche jamais sur une propriété encore pilotée par
+     une animation "forwards" -> avec une @keyframes ici, le fondu de sortie
+     ci-dessous n'aurait tout simplement pas pu s'animer, quoi qu'on tente
+     par ailleurs (opacity sautait instantanément à sa valeur finale). */
+  transition: opacity 1.2s ease 0.3s, transform 0.4s ease-in-out;
+}
+
+#overlay.is-ready #overlay-heading {
+  opacity: 1;
+}
+
+/* Fondu de sortie du texte au clic sur Discover, avec un léger zoom (pas
+   juste une disparition à plat) : première étape de la séquence. Redéclare
+   "transition" sans le délai d'entrée (0.3s), sinon le fondu de sortie
+   démarrerait avec 0.3s de retard. Vient après la règle .is-ready ci-dessus
+   dans le fichier : à spécificité égale, c'est l'ordre qui tranche. */
+#overlay.is-off #overlay-heading {
+  transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+  opacity: 0;
+  transform: scale(1.15);
+}
+
+#overlay-title {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-feature-settings: 'ss01' on;
+  font-size: clamp(1.25rem, 3.5vw, 2.5rem);
+  /* Dégradé vertical gris bleuté -> gris quasi blanc, même technique que
+     #overlay-subtitle (background-clip: text). */
+  background-image: linear-gradient(180deg, #ffffff 0%, #a6a9c2 50%, #2f3b53 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Dégradé violet -> rose, appliqué uniquement aux lettres via background-clip: text */
+#overlay-subtitle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 2rem 0 0; /* pousse le sous-titre à mi-chemin entre le titre et le bouton */
+  padding-left: 0.2em; /* compense le décalage visuel du point final */
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  background-image: linear-gradient(100deg, #836eff 0%, #ca6a33cb 45%, #f1238a 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Wrapper : positionnement + fondu d'apparition + état "éteint" (chargement).
+   Le spotlight lui-même vit dans #power-switch-spotlight, un frère du bouton. */
+#power-switch-glow {
+  --base: 350;
+  --spread: 60;
+  --spotlight-size: 100;
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  /* Même logique que #overlay-heading : transition pure déclenchée par
+     .is-ready, pas d'animation @keyframes (qui bloquerait le fondu de
+     sortie au clic, voir le commentaire détaillé sur #overlay-heading). */
+  transition: opacity 1.2s ease 0.6s, transform 0.4s ease-in-out;
+}
+
+#overlay.is-ready #power-switch-glow {
+  opacity: 1;
+}
+
+/* Éteint tant que les images ne sont pas toutes chargées : classe posée/
+   retirée en JS (pas de :disabled possible sur ce wrapper, ce n'est pas un
+   bouton). !important nécessaire : #overlay.is-ready #power-switch-glow a
+   une spécificité plus forte (2 ids) que cette règle (1 id) et gagnerait
+   sinon dès que .is-ready est posée. */
+#power-switch-glow.is-disabled {
+  opacity: 0.35 !important;
+}
+
+/* Fondu de sortie du bouton au clic, en même temps que le titre. Redéclare
+   "transition" sans le délai d'entrée (0.6s), voir #overlay.is-off
+   #overlay-heading pour la même raison. */
+#overlay.is-off #power-switch-glow {
+  transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+  opacity: 0;
+  transform: scale(1.2);
+}
+
+/* Glow qui suit le curseur (position globale, --x/--y/--xp posés en JS sur
+   #power-switch-glow, héritées ici par ce descendant). background-attachment:
+   fixed fait correspondre les coordonnées écran à la position du dégradé :
+   le bouton "s'allume" naturellement quand le curseur passe à proximité,
+   sans état :hover. */
+#power-switch-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  background-image: radial-gradient(
+    calc(var(--spotlight-size, 100) * 1px) calc(var(--spotlight-size, 100) * 1px) at
+    calc(var(--x, 0) * 1px) calc(var(--y, 0) * 1px),
+    hsl(calc(var(--base, 350) + (var(--xp, 0.5) * var(--spread, 60))) 90% 65% / 0.35),
+    transparent 70%
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Anneau lumineux : dégradé posé en pseudo-élément puis masqué pour ne
+   garder que le contour (padding + mask-composite: exclude) */
+#power-switch-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  background-image: radial-gradient(
+    calc(var(--spotlight-size, 100) * 0.75 * 1px) calc(var(--spotlight-size, 100) * 0.75 * 1px) at
+    calc(var(--x, 0) * 1px) calc(var(--y, 0) * 1px),
+    hsl(calc(var(--base, 350) + (var(--xp, 0.5) * var(--spread, 60))) 95% 60% / 1),
+    transparent 100%
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: brightness(1.8);
+  pointer-events: none;
+}
+
+#power-switch {
+  position: relative;
+  font-family: 'Montserrat', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1rem 3rem;
+  border-radius: 10px;
+  border: 1px solid transparent; /* garde l'épaisseur/mise en page, le rendu vient du ::before */
+  color: #fff;
+  cursor: pointer;
+  background-color: transparent;
+  transition: transform 0.2s ease-out;
+  transform: perspective(500px) rotateX(0deg) rotateY(0deg) translateZ(0);
+}
+
+/* Bord en dégradé violet -> rose (même dégradé que #overlay-subtitle),
+   dessiné en anneau via la technique padding + mask-composite: exclude
+   pour respecter le border-radius */
+#power-switch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background-image: linear-gradient(100deg, #8b5cf6 0%, #ec4899 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+#power-switch:disabled {
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.hover-zone {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease;
+}
