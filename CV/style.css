@@ -1,0 +1,110 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Titre de section (Education, Skills, Tools...) : même logique que les
+   titres de carte du reste du site (Montserrat, gras, pas de fioriture) -
+   juste une petite barre d'accent pour les distinguer du corps de texte
+   sans avoir besoin d'une taille beaucoup plus grande. */
+.cv-section-title {
+  position: relative;
+  display: inline-block;
+  padding-left: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.cv-section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 3px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.cv-tool-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  display: block;
+}
+
+.cv-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease-in-out;
+}
+.cv-link:hover {
+  color: #fff;
+}
+
+/* Bouton "Back" agrandi sur mobile : voir CV/script.js (style inline posé
+   en JS, historique - un essai en CSS pur via .is-mobile #cv-back ne
+   s'appliquait visuellement pas, à cause de la balise viewport manquante
+   sur cette page (corrigée depuis, voir index.html) qui faussait le rendu
+   entier de la page, pas d'un vrai conflit CSS. */
+
+/* Bloc uni derrière la barre de statut iOS (horloge/réseau/batterie) - même
+   principe que .mobile-statusbar-bg sur l'accueil (voir style.css à la
+   racine), dupliqué ici (pas de CSS partagé entre les pages). #141414,
+   comme le fond réel de la page (voir class sur <body> dans index.html),
+   pas blanc - cette page est sombre, contrairement à l'accueil. */
+.mobile-statusbar-bg {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background: #141414;
+  z-index: 500;
+  pointer-events: none;
+}
+.is-mobile .mobile-statusbar-bg {
+  display: block;
+}
+
+/* Photo + accroche : côte à côte même sur mobile (au lieu d'empilé comme le
+   ferait flex-col, voir index.html) - texte réduit pour tenir dans l'espace
+   plus étroit laissé par la photo. */
+.is-mobile #cv-intro {
+  flex-direction: row;
+  /* items-start (voir index.html) alignait la photo en haut - elle est
+     plus courte que le bloc de texte à côté (deux paragraphes), donc
+     restait collée en haut au lieu d'être centrée par rapport à lui. */
+  align-items: center;
+  gap: 1rem;
+}
+.is-mobile #cv-intro .cv-intro-lead {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.is-mobile #cv-intro .cv-intro-sub {
+  font-size: 0.8rem;
+  margin-top: 0.75rem;
+}
+
+/* Cadre de la photo : gradient sombre -> clair de haut en bas, coins
+   arrondis - reproduit le fond de la photo d'origine (export InDesign),
+   posé ici en CSS puisque photo.webp est un détourage transparent (pas de
+   fond "en dur" dans le fichier). Largeur dérivée de la hauteur (aspect-
+   ratio) plutôt qu'une valeur fixe, pour suivre le h-56/md:h-64 posé en
+   Tailwind sur l'élément lui-même. */
+.cv-photo-frame {
+  aspect-ratio: 3 / 3.6;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  background: linear-gradient(to bottom, #2a2a2a, #d9d9d9);
+}
+.cv-photo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
